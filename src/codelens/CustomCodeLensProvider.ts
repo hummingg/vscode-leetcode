@@ -50,7 +50,7 @@ export class CustomCodeLensProvider implements vscode.CodeLensProvider {
         for (let i: number = 0; i < shortcuts.length; i++) {
             let title, command, args;
             let willPush = true;
-            switch(shortcuts[i]){
+            switch (shortcuts[i]) {
                 case "submit":
                     title = "Submit";
                     command = "leetcode.submitSolution";
@@ -62,7 +62,7 @@ export class CustomCodeLensProvider implements vscode.CodeLensProvider {
                     args = [document.uri];
                     break;
                 case "star":
-                    if(!node){
+                    if (!node) {
                         willPush = false;
                         break;
                     }
@@ -80,18 +80,23 @@ export class CustomCodeLensProvider implements vscode.CodeLensProvider {
                     command = "leetcode.previewProblem";
                     args = [document.uri];
                     break;
+                case "writeSolution":
+                    title = "Write Solution";
+                    command = "leetcode.writeSolution";
+                    args = [node];
+                    break;
                 default:
                     willPush = false;
                     break;
             }
-            if(!willPush){
+            if (!willPush) {
                 continue;
             }
             codeLens.push(new vscode.CodeLens(range, {
-                    title: title,
-                    command: command,
-                    arguments: args,
-                }));
+                title: title,
+                command: command,
+                arguments: args,
+            }));
         }
 
         return codeLens;

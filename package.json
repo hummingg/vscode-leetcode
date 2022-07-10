@@ -34,6 +34,7 @@
         "onCommand:leetcode.pickOne",
         "onCommand:leetcode.problemOfToday",
         "onCommand:leetcode.showProblem",
+        "onCommand:leetcode.writeSolution",
         "onCommand:leetcode.previewProblem",
         "onCommand:leetcode.searchProblem",
         "onCommand:leetcode.testSolution",
@@ -137,6 +138,11 @@
                     "light": "resources/light/dislike.png",
                     "dark": "resources/dark/dislike.png"
                 }
+            },
+            {
+                "command": "leetcode.writeSolution",
+                "title": "Write Solution",
+                "category": "LeetCode"
             },
             {
                 "command": "leetcode.switchDefaultLanguage",
@@ -672,7 +678,8 @@
                                 "test",
                                 "star",
                                 "solution",
-                                "description"
+                                "description",
+                                "writeSolution"
                             ],
                             "enumDescriptions": [
                                 "Submit your answer to LeetCode.",

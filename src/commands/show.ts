@@ -10,7 +10,7 @@ import { LeetCodeNode } from "../explorer/LeetCodeNode";
 import { leetCodeChannel } from "../leetCodeChannel";
 import { leetCodeExecutor } from "../leetCodeExecutor";
 import { leetCodeManager } from "../leetCodeManager";
-import { IProblem, IQuickItemEx, languages, ProblemState } from "../shared";
+import { IProblem, IQuickItemEx, languages, ProblemState, UserStatus } from "../shared";
 import { genFileExt, genFileName, getNodeIdFromFile } from "../utils/problemUtils";
 import * as settingUtils from "../utils/settingUtils";
 import { IDescriptionConfiguration } from "../utils/settingUtils";
@@ -20,6 +20,8 @@ import * as wsl from "../utils/wslUtils";
 import { leetCodePreviewProvider } from "../webview/leetCodePreviewProvider";
 import { leetCodeSolutionProvider } from "../webview/leetCodeSolutionProvider";
 import * as list from "./list";
+
+import * as fs from "fs";
 
 export async function previewProblem(input: IProblem | vscode.Uri, isSideMode: boolean = false): Promise<void> {
     let node: IProblem;
@@ -65,7 +67,6 @@ export async function problemOfToday(): Promise<void> {
         const match: RegExpMatchArray | null = lines[0].match(reg);
         if (match != null) {
             const id = match[1]
-            // vscode.window.showInformationMessage(`MyDebug: problemid ${id}`);
             const problemOfToday: IProblem[] = nodes.filter(one => one.id === id);
             if (problemOfToday.length != 1) {
                 explorerNodeManager.getNodeById(id);
@@ -80,11 +81,19 @@ export async function problemOfToday(): Promise<void> {
         await promptForOpenOutputChannel("Fail to load problem of today. Open the output channel for details.", DialogType.error);
     }
 }
+
 export async function showProblem(node?: LeetCodeNode): Promise<void> {
     if (!node) {
         return;
     }
     await showProblemInternal(node);
+}
+
+export async function writeSolution(node?: LeetCodeNode): Promise<void> {
+    if (!node) {
+        return;
+    }
+    await writeSolutionInternal(node);
 }
 
 export async function searchProblem(): Promise<void> {
@@ -213,6 +222,80 @@ async function showProblemInternal(node: IProblem): Promise<void> {
         }
 
         await Promise.all(promises);
+    } catch (error) {
+        await promptForOpenOutputChannel(`${error} Please open the output channel for details.`, DialogType.error);
+    }
+}
+
+async function writeSolutionInternal(node: IProblem): Promise<void> {
+    try {
+        const language: string | undefined = await fetchProblemLanguage();
+        if (!language) {
+            return;
+        }
+
+        const leetCodeConfig: vscode.WorkspaceConfiguration = vscode.workspace.getConfiguration("leetcode");
+        const workspaceFolder: string = await selectWorkspaceFolder();
+        if (!workspaceFolder) {
+            return;
+        }
+
+        const fileFolder: string = leetCodeConfig
+            .get<string>(`filePath.${language}.folder`, leetCodeConfig.get<string>(`filePath.default.folder`, ""))
+            .trim();
+        const fileName: string = leetCodeConfig
+            .get<string>(
+                `filePath.${language}.filename`,
+                leetCodeConfig.get<string>(`filePath.default.filename`) || genFileName(node, language),
+            )
+            .trim();
+
+        if (leetCodeManager.getStatus() === UserStatus.SignedOut) {
+            return;
+        }
+
+        let finalPath: string = path.join(workspaceFolder, fileFolder, fileName);
+        if (finalPath) {
+            finalPath = await resolveRelativePath(finalPath, node, language);
+            if (!finalPath) {
+                leetCodeChannel.appendLine("Showing problem canceled by user.");
+                return;
+            }
+        }
+
+        finalPath = wsl.useWsl() ? await wsl.toWinPath(finalPath) : finalPath;
+
+        // 源代码文件，读取${code}
+        const data: string | null = fs.existsSync(finalPath) ? fs.readFileSync(finalPath).toString() : null;
+        if (!data) {
+            return;
+        }
+        const match: RegExpMatchArray | null = /(#|\/\/) @lc code=start([\s\S]*)(#|\/\/) @lc code=end/gm.exec(data);
+        if (!match) {
+            return;
+        }
+        const code: string = match[2];
+        let solution: string = '```' + language + ' []' + code + '```\n';
+        // 附加到题解文件xxx.md，附加tpl中的${code}部分
+        const solutionFileFolder: string = leetCodeConfig
+            .get<string>(`solutionFolder`, "defaultSolutionFolder")
+            .trim();
+        const solutionFileName: string = `${node.id}.${node.name}.md`;
+        let solutionFinalPath: string = path.join(workspaceFolder, solutionFileFolder, solutionFileName);
+        solutionFinalPath = wsl.useWsl() ? await wsl.toWinPath(solutionFinalPath) : solutionFinalPath;
+
+        if (!fs.existsSync(solutionFinalPath)) {
+            const talkcheap: string = '`Talk is cheap. Show you my code.`';
+            solution = `${node.id} 题解：\n${talkcheap}\n${solution}`;
+            const matchLink: RegExpMatchArray | null = /# (https:\/\/leetcode.cn\/problems\/.+\/description\/)/.exec(data);
+            if (matchLink) {
+                solution = `[[ ${node.id} ] ${node.name}](${matchLink[1]})\n` + solution;
+            }
+        }
+        fs.appendFileSync(solutionFinalPath, solution);
+        vscode.workspace.openTextDocument(solutionFinalPath).then(
+            document => vscode.window.showTextDocument(document)
+        );
     } catch (error) {
         await promptForOpenOutputChannel(`${error} Please open the output channel for details.`, DialogType.error);
     }
